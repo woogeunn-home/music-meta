@@ -1,0 +1,29 @@
+[project]
+name = "music-meta"
+version = "0.1.0"
+description = "Fill MP3 metadata from public metadata sources and rename files consistently."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "mutagen>=1.47.0",
+  "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+]
+gui = [
+  "tkinterdnd2>=0.4.2",
+]
+
+[project.scripts]
+music-meta = "music_meta.cli:main"
+music-meta-app = "music_meta.gui:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
