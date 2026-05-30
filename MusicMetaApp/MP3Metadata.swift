@@ -17,13 +17,19 @@ enum MP3Metadata {
             let stem = url.deletingPathExtension().lastPathComponent
             if let range = stem.range(of: " - ") {
                 artist = artist ?? String(stem[..<range.lowerBound])
-                title = String(stem[range.upperBound...])
+                title = cleanTitle(String(stem[range.upperBound...]))
             } else {
-                title = stem
+                title = cleanTitle(stem)
             }
         }
 
         return TrackGuess(title: title, artist: artist, album: album)
+    }
+
+    private static func cleanTitle(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: #"^\s*\d{1,3}\s*[-._)]?\s*"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func write(track: TrackMetadata, artwork: Data?, to url: URL) throws {

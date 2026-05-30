@@ -224,7 +224,9 @@ struct ITunesProvider: MetadataProvider {
         var albums: [AlbumMetadata] = []
         for item in response.results {
             guard let collectionID = item.collectionID else { continue }
-            albums.append(try await lookupAlbum(collectionID: collectionID, seed: item))
+            if let album = try? await lookupAlbum(collectionID: collectionID, seed: item) {
+                albums.append(album)
+            }
         }
         return albums
     }

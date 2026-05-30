@@ -158,8 +158,8 @@ final class AppViewModel: ObservableObject {
         guard let groupID = selectedAlbumGroup?.id else { return }
         isWorking = true
         status = "앨범 후보 검색 중..."
-        await searchAlbums(groupID: groupID, autoApplyBest: false)
-        status = "앨범 후보 검색 완료"
+        let count = await searchAlbums(groupID: groupID, autoApplyBest: false)
+        status = count == 0 ? "앨범 후보 검색 완료: 후보 없음" : "앨범 후보 검색 완료: \(count)개"
         isWorking = false
     }
 
@@ -313,8 +313,9 @@ final class AppViewModel: ObservableObject {
         items[index].status = selected == nil ? .noMatch : .matched
     }
 
-    private func searchAlbums(groupID: AlbumGroup.ID, autoApplyBest: Bool) async {
-        guard let groupIndex = albumGroups.firstIndex(where: { $0.id == groupID }) else { return }
+    @discardableResult
+    private func searchAlbums(groupID: AlbumGroup.ID, autoApplyBest: Bool) async -> Int {
+        guard let groupIndex = albumGroups.firstIndex(where: { $0.id == groupID }) else { return 0 }
         let term = albumGroups[groupIndex].albumSearchTerm
         var candidates: [AlbumMetadata] = []
         for query in albumSearchQueries(from: term) {
@@ -326,6 +327,7 @@ final class AppViewModel: ObservableObject {
         if autoApplyBest, let best = bestAlbumMatch(group: albumGroups[groupIndex], candidates: filteredCandidates) {
             apply(album: best, to: groupID)
         }
+        return filteredCandidates.count
     }
 
     private func bestAlbumMatch(group: AlbumGroup, candidates: [AlbumMetadata]) -> AlbumMetadata? {
@@ -339,20 +341,20 @@ final class AppViewModel: ObservableObject {
         let combinedAlbum = normalizedSearchText("\(album.artist) \(album.title) \(album.year ?? "")")
 
         let titleScore = max(
-            similarity(group.folderName, album.title),
-            similarity(normalizedTerm, combinedAlbum),
-            normalizedTerm.contains(albumTitle) ? 0.96 : 0
+            normalizedSimilarity(group.folderName, album.title),
+            normalizedSimilarity(normalizedTerm, combinedAlbum),
+            normalizedTerm.contains(albumTitle) || albumTitle.contains(normalizedTerm) ? 0.96 : 0
         )
-        let artistScore = albumArtist.isEmpty ? 0 : (normalizedTerm.contains(albumArtist) ? 1 : similarity(normalizedTerm, album.artist))
+        let artistScore = albumArtist.isEmpty ? 0 : (normalizedTerm.contains(albumArtist) ? 1 : normalizedSimilarity(normalizedTerm, album.artist))
         let trackCountScore = album.tracks.isEmpty ? 0 : max(0, 1 - abs(Double(album.tracks.count - group.itemIDs.count)) / Double(max(album.tracks.count, group.itemIDs.count)))
         let sourceBoost = album.source == "iTunes" ? 0.12 : 0
         return titleScore * 0.50 + artistScore * 0.18 + trackCountScore * 0.32 + sourceBoost
     }
 
     private func score(guess: TrackGuess, track: TrackMetadata) -> Double {
-        similarity(guess.title, track.title) * 0.55
-            + similarity(guess.artist, track.artist) * 0.35
-            + similarity(guess.album, track.album) * 0.10
+        normalizedSimilarity(guess.title, track.title) * 0.55
+            + normalizedSimilarity(guess.artist, track.artist) * 0.35
+            + normalizedSimilarity(guess.album, track.album) * 0.10
     }
 
     private func applyAlbumGroupsToChildren() {
@@ -413,7 +415,7 @@ final class AppViewModel: ObservableObject {
 
         let strict = deduped.filter { albumScore(group: group, album: $0) >= minimumAlbumScore }
         if strict.isEmpty {
-            return Array(deduped.filter { albumScore(group: group, album: $0) >= 0.46 }.prefix(5))
+            return Array(deduped.prefix(5))
         }
         return Array(strict.prefix(8))
     }
@@ -445,9 +447,14 @@ final class AppViewModel: ObservableObject {
         value
             .lowercased()
             .replacingOccurrences(of: #"\([^)]*\)"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"(^|\s)\d{1,3}\s*[-._)]\s*"#, with: " ", options: .regularExpression)
             .replacingOccurrences(of: #"[^a-z0-9가-힣]+"#, with: " ", options: .regularExpression)
             .split(separator: " ")
             .joined(separator: " ")
+    }
+
+    private func normalizedSimilarity(_ left: String?, _ right: String?) -> Double {
+        similarity(left.map(normalizedSearchText), right.map(normalizedSearchText))
     }
 
     private func artwork(for track: TrackMetadata, itemID: PreviewItem.ID) async -> Data? {

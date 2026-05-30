@@ -84,17 +84,17 @@ struct ContentView: View {
     }
 
     private var contentArea: some View {
-        HStack(spacing: 0) {
+        HSplitView {
             AlbumSidebar(model: model)
-                .frame(width: 300)
+                .frame(minWidth: 240, idealWidth: 300, maxWidth: 460)
                 .clipped()
-            Divider()
+
             table
-                .frame(minWidth: 480, maxWidth: .infinity)
+                .frame(minWidth: 420, idealWidth: 720, maxWidth: .infinity)
                 .clipped()
-            Divider()
+
             DetailPanel(model: model)
-                .frame(width: 380)
+                .frame(minWidth: 300, idealWidth: 380, maxWidth: 620)
                 .clipped()
         }
     }
